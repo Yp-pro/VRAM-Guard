@@ -13,7 +13,7 @@ VRAM Guard monitors the VRAM temperature via `LibreHardwareMonitor`. When the te
 3. It **Resumes** them for a short burst of work (`WORK_TIME`).
 4. This "Sawtooth" load pattern allows the VRAM to shed heat effectively during pauses, keeping average temperatures significantly lower without crashing the application.
 
-## ✨ Key Features (v1.3 Update)
+## ✨ Key Features (v1.2 Update)
 *   **🚨 Panic Button (New):** The last line of defense. If Pulse Throttling fails and VRAM hits **105°C** for more than 10 seconds, VRAM Guard performs an **Emergency Kill** of the heavy process to prevent permanent hardware damage. Better a lost render than a dead GPU.
 *   **🔌 Zero Friction Setup:** Automatic download and configuration of monitoring tools.
 
