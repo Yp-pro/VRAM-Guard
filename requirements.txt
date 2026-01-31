@@ -1,4 +1,0 @@
-psutil
-requests
-pystray
-Pillow
