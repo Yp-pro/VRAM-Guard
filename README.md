@@ -13,8 +13,12 @@ VRAM Guard monitors the VRAM temperature via `LibreHardwareMonitor`. When the te
 3. It **Resumes** them for a short burst of work (`WORK_TIME`).
 4. This "Sawtooth" load pattern allows the VRAM to shed heat effectively during pauses, keeping average temperatures significantly lower without crashing the application.
 
-## ✨ Key Features (v1.2 Update)
-*   **🚨 Panic Button (New):** The last line of defense. If Pulse Throttling fails and VRAM hits **105°C** for more than 10 seconds, VRAM Guard performs an **Emergency Kill** of the heavy process to prevent permanent hardware damage. Better a lost render than a dead GPU.
+## ✨ Key Features (v1.3 Update)
+*   **🔔 Notifications & Audio Alerts (New):** Get notified immediately when throttling kicks in.
+    *   **Windows Toast:** Pop-up alert when VRAM Guard activates cooling.
+    *   **Panic Siren:** Audible beeping if the temperature reaches the Panic Threshold (105°C), warning you of critical danger.
+*   **🚨 Panic Button:** The last line of defense. If VRAM hits **105°C** for more than 10 seconds, VRAM Guard performs an **Emergency Kill** of the heavy process to prevent permanent hardware damage.
+
 *   **🔌 Zero Friction Setup:** Automatic download and configuration of monitoring tools.
 
 *   **🚀 Adaptive Polling:** The script intelligently changes its check frequency based on temperature. It checks once every **60 seconds** when idle (<60°C), ensuring zero impact on battery life and allowing the GPU to sleep.
@@ -47,10 +51,6 @@ Run **`Start_Protection.bat`** as **Administrator**.
  ├── 📄 Start_Protection.bat  # Launcher (Clean start)
  ├── 📄 install.bat           # Dependency Installer
  ├── 📂 icons                 # UI Assets
- │    ├── norm.ico            # Healthy status
- │    ├── fire.ico            # Cooling active
- │    ├── pause.ico           # Script paused
- │    └── app.ico             # Settings window icon
  ├── 📂 img                   # Documentation assets
  ├── 📂 venv                  # Python Environment (created by install.bat)
  └── 📂 LibreHardwareMonitor  # Monitoring Tool (user-provided)
@@ -58,7 +58,13 @@ Run **`Start_Protection.bat`** as **Administrator**.
 
 ## ⚙️ Configuration
 
-Open `vram_guard.py` with any text editor to tweak these variables:
+You can configure settings via the **System Tray Icon -> Settings**:
+
+*   **Threshold Slider:** Set the temp to trigger cooling (Recommended: 90-94°C).
+*   **Windows Notifications:** Toggle toast pop-ups on/off.
+*   **Audio Alert:** Toggle the panic beep sound on/off.
+
+Advanced users can edit `vram_guard.py` directly for timings:
 
 *   `VRAM_T1`: Temperature threshold to trigger cooling (Recommended: 90-94°C).
 *   `COOL_DOWN_TIME`: Duration of the pause (Default: 3.0s).
