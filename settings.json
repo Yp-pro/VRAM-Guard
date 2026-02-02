@@ -1,1 +1,8 @@
-} 
+{
+    "vram_t1_threshold": 92,
+    "vram_t2_panic_threshold": 105,
+    "cool_down_time_s": 3.0,
+    "work_time_s": 2.0,
+    "enable_notifications": true,
+    "enable_audio_alert": true
+}

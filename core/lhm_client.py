@@ -3,142 +3,167 @@ import requests
 import subprocess
 import time
 import socket
-import json
+import zipfile
+import io
+import os
+import re
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
 class LHMClient:
-    """
-    Manages the LibreHardwareMonitor (LHM) process and communicates with its API.
-    Handles dynamic port assignment and VRAM temperature retrieval.
-    """
-    
-    LHM_EXE_PATH = Path("resources") / "LibreHardwareMonitor" / "LibreHardwareMonitor.exe"
-    LHM_PORT_RANGE = (8085, 8095)
-    
-    def __init__(self):
+    def __init__(self, project_root: Path):
+        self.project_root = project_root
+        self.lhm_dir = self.project_root / "resources" / "LibreHardwareMonitor"
+        self.lhm_exe = self.lhm_dir / "LibreHardwareMonitor.exe"
+        self.lhm_config = self.lhm_dir / "LibreHardwareMonitor.config"
         self.port: Optional[int] = None
         self.lhm_process: Optional[subprocess.Popen] = None
         self.api_url: str = ""
-        
+
+    def _cleanup_old_instances(self):
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "LibreHardwareMonitor.exe", "/T"], 
+                           capture_output=True, check=False)
+            time.sleep(2)
+        except: pass
+
+    def _create_config(self, port: int):
+        xml_content = f"""<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <appSettings>
+    <add key="startMinMenuItem" value="true" />
+    <add key="runWebServerMenuItem" value="true" />
+    <add key="listenerPort" value="{port}" />
+    <add key="listenerIp" value="0.0.0.0" />
+    <add key="updateIntervalMenuItem" value="1" />
+  </appSettings>
+</configuration>"""
+        try:
+            with open(self.lhm_config, "w", encoding="utf-8") as f:
+                f.write(xml_content)
+        except Exception as e:
+            logger.error(f"Config error: {e}")
+
+    def _download_lhm(self) -> bool:
+        logger.info("Downloading LHM v0.9.5...")
+        try:
+            self.lhm_dir.mkdir(parents=True, exist_ok=True)
+            headers = {'User-Agent': 'VRAM-Guard/1.4.1'}
+            response = requests.get("https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/download/v0.9.5/LibreHardwareMonitor.zip", headers=headers, timeout=30)
+            with zipfile.ZipFile(io.BytesIO(response.content)) as zip_ref:
+                zip_ref.extractall(self.lhm_dir)
+            return True
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
+            return False
+
     def _find_free_port(self) -> Optional[int]:
-        """
-        Finds the first available port in the defined range.
-        """
-        for port in range(*self.LHM_PORT_RANGE):
+        for port in range(8085, 8095):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 try:
                     s.bind(("127.0.0.1", port))
                     return port
-                except OSError:
-                    continue
-        logger.error(f"No free port found in range {self.LHM_PORT_RANGE}")
+                except OSError: continue
         return None
 
     def _start_lhm(self) -> bool:
-        """
-        Starts the LibreHardwareMonitor process with the assigned port.
-        LHM must be configured to run with WebServer enabled.
-        """
-        if not self.LHM_EXE_PATH.exists():
-            logger.critical(f"LHM executable not found at {self.LHM_EXE_PATH}")
-            # NOTE: In v1.5, we would add automatic download here.
-            return False
-
+        if not self.lhm_exe.exists():
+            if not self._download_lhm(): return False
+        self._cleanup_old_instances()
         self.port = self._find_free_port()
-        if not self.port:
-            return False
-
+        if not self.port: return False
+        self._create_config(self.port)
         self.api_url = f"http://127.0.0.1:{self.port}/data.json"
         
-        # Command to run LHM with web server enabled on the found port
-        # NOTE: LHM requires configuration file setup to enable WebServer.
-        # Assuming the config is set up by the user/installer to run the web server.
-        cmd = [
-            str(self.LHM_EXE_PATH),
-            f"/webserver:start",
-            f"/webserverport:{self.port}"
-        ]
-        
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 0 
+
         try:
-            # Use DETACHED_PROCESS to run LHM in the background without a console window
             self.lhm_process = subprocess.Popen(
-                cmd, 
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                [str(self.lhm_exe)], cwd=str(self.lhm_dir),
+                startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
             )
-            logger.info(f"LHM started on port {self.port} (PID: {self.lhm_process.pid})")
-            time.sleep(3) # Give LHM time to initialize the web server
-            return True
+            logger.info(f"LHM process started (PID: {self.lhm_process.pid})")
+            
+            for i in range(15):
+                try:
+                    requests.get(self.api_url, timeout=1)
+                    logger.info("LHM API is online.")
+                    return True
+                except: 
+                    if i % 5 == 0: logger.info(f"Waiting for API... ({i}s)")
+                    time.sleep(2)
+            return False
         except Exception as e:
-            logger.critical(f"Failed to start LHM: {e}")
+            logger.error(f"LHM start error: {e}")
             return False
 
-    def check_and_start(self) -> bool:
+    def _extract_float(self, value_str: str) -> Optional[float]:
         """
-        Checks if LHM is running and starts it if necessary.
+        Extracts a float number from a string like '64.5 °C' or '64,5 °C'.
+        Uses regex for maximum reliability.
         """
-        if self.lhm_process and self.lhm_process.poll() is None:
-            logger.debug("LHM process is already running.")
-            return True
-        
-        if self.lhm_process and self.lhm_process.poll() is not None:
-            logger.warning("LHM process has crashed. Attempting restart.")
-            
-        return self._start_lhm()
-
-    def get_vram_temp(self) -> Tuple[Optional[float], Optional[str]]:
-        """
-        Retrieves the VRAM temperature from the LHM API.
-        :return: Tuple of (temperature, gpu_name) or (None, None) on failure.
-        """
-        if not self.port:
-            logger.warning("LHM port not set. Cannot retrieve data.")
-            return None, None
-
         try:
-            # Add a short timeout to prevent the monitoring thread from hanging
-            response = requests.get(self.api_url, timeout=5)
-            response.raise_for_status()
+            # Find the first sequence of digits, dots, or commas
+            match = re.search(r"([0-9]+(?:[.,][0-9]+)?)", value_str)
+            if match:
+                num_str = match.group(1).replace(',', '.')
+                return float(num_str)
+        except Exception as e:
+            logger.debug(f"Failed to parse value '{value_str}': {e}")
+        return None
+
+    def _find_all_sensors(self, node: dict, found_sensors: list):
+        text = node.get('Text', '')
+        value = node.get('Value', '')
+        children = node.get('Children', [])
+
+        # We look for anything that looks like a temperature
+        if value and ("°C" in value or "C" in value):
+            found_sensors.append({'name': text, 'value': value})
+
+        for child in children:
+            self._find_all_sensors(child, found_sensors)
+
+    def get_vram_temp(self) -> Tuple[Optional[float], str]:
+        if not self.api_url: return None, "Unknown"
+        try:
+            response = requests.get(self.api_url, timeout=1)
             data = response.json()
             
-            # --- JSON PARSING LOGIC (Simplified for VRAM GDDR6) ---
-            # LHM structure: Children -> Children (GPU) -> Children (Sensors)
+            sensors = []
+            self._find_all_sensors(data, sensors)
             
-            for child in data.get('Children', []):
-                if child.get('Text') == 'NVIDIA':
-                    for gpu in child.get('Children', []):
-                        # Assuming the first NVIDIA GPU is the target
-                        gpu_name = gpu.get('Text')
-                        for sensor_group in gpu.get('Children', []):
-                            if sensor_group.get('Text') == 'Temperatures':
-                                for sensor in sensor_group.get('Children', []):
-                                    # Look for 'GPU Memory Junction Temperature' or similar VRAM sensor
-                                    if 'Memory' in sensor.get('Text', '') and sensor.get('Value'):
-                                        temp = float(sensor['Value'].split()[0])
-                                        logger.debug(f"VRAM Temp: {temp}°C from {gpu_name}")
-                                        return temp, gpu_name
-            
-            logger.warning("VRAM temperature sensor not found in LHM output.")
-            return None, None
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"LHM API request failed: {e}")
-            self.lhm_process = None # Mark as potentially crashed
-            return None, None
+            # Search for the VRAM sensor (prioritizing "Junction" as seen in your screenshot)
+            for s in sensors:
+                name = s['name'].lower()
+                # Match "GPU Memory Junction" or "GPU Memory" or just "Memory" if it's a GPU sensor
+                if "memory" in name and ("junction" in name or "gpu" in name):
+                    val = self._extract_float(s['value'])
+                    if val is not None:
+                        return val, s['name']
+
+            # Fallback: Any sensor with "Memory"
+            for s in sensors:
+                if "memory" in s['name'].lower():
+                    val = self._extract_float(s['value'])
+                    if val is not None:
+                        return val, s['name']
+                
+            return None, "Not Found"
         except Exception as e:
-            logger.error(f"Error parsing LHM data: {e}")
-            return None, None
-            
-    def stop(self):
-        """
-        Terminates the LHM process.
-        """
+            return None, str(e)
+
+    def check_and_start(self) -> bool:
         if self.lhm_process and self.lhm_process.poll() is None:
-            try:
-                self.lhm_process.terminate()
-                self.lhm_process.wait(timeout=5)
-                logger.info("LHM process terminated.")
-            except Exception as e:
-                logger.error(f"Failed to terminate LHM process: {e}")
+            return True
+        return self._start_lhm()
+
+    def stop(self):
+        if self.lhm_process:
+            try: self.lhm_process.terminate()
+            except: pass

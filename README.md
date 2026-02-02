@@ -17,10 +17,12 @@ VRAM Guard monitors the VRAM temperature via `LibreHardwareMonitor`. When the te
 3. It **Resumes** them for a short burst of work (`WORK_TIME`).
 4. This "Sawtooth" load pattern allows the VRAM to shed heat effectively during pauses, keeping average temperatures significantly lower without crashing the application.
 
-## ✨ Key Features (v1.4 Update)
+## ✨ Key Features (v1.4.1 Hotfix)
 
-*   **⚙️ Core Stability (NEW):** Complete internal refactoring to Object-Oriented structure. 
-*   **📝 Advanced Logging (NEW):** All actions and errors are logged to `vram_guard.log` for easy debugging.
+*   **👻 Stealth Mode (NEW):** The application now runs completely in the background. No console window will clutter your taskbar; everything is managed via the system tray.
+*   **⚙️ Core Stability:** Complete internal refactoring to Object-Oriented structure for maximum reliability. 
+
+*   **📝 Advanced Logging:** All actions and errors are logged to `vram_guard.log` for easy debugging.
 *   **🔔 Notifications & Audio Alerts:** Get notified immediately when throttling kicks in.
     *   **Windows Toast:** Pop-up alert when VRAM Guard activates cooling.
     *   **Panic Siren:** Audible beeping if the temperature reaches the Panic Threshold (105°C), warning you of critical danger.
@@ -59,14 +61,15 @@ Run **`Start_Protection.bat`** as **Administrator**.
 ```text
 📂 VRAM-Guard
  ├── 📄 vram_guard.py         # Main Logic
- ├── 📄 Start_Protection.bat  # Launcher (Clean start)
+ ├── 📄 Start_Protection.bat  # Launcher (Clean start in Stealth Mode)
  ├── 📄 install.bat           # Dependency Installer
- ├── 📄 settings.json         # NEW: Configuration file for thresholds and timings
- ├── 📄 vram_guard.log        # NEW: Log file for debugging
- ├── 📂 icons                 # UI Assets
+ ├── 📄 settings.json         # Configuration file for thresholds and timings
+ ├── 📄 vram_guard.log        # Log file for debugging
+ ├── 📂 resources             # Application resources
+ │   ├── 📂 icons             # UI Assets (norm, fire, app icons)
+ │   └── 📂 LibreHardwareMonitor # Monitoring Tool (auto-downloaded)
  ├── 📂 img                   # Documentation assets
- ├── 📂 venv                  # Python Environment (created by install.bat)
- └── 📂 LibreHardwareMonitor  # Monitoring Tool (user-provided)
+ └── 📂 venv                  # Python Environment (created by install.bat)
 ```
 
 ## ⚙️ Configuration

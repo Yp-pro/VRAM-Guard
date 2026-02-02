@@ -1,4 +1,4 @@
 psutil
 requests
 pystray
-Pillow 
+Pillow

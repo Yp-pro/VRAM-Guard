@@ -4,6 +4,7 @@ import logging
 import logging.handlers
 import threading
 import time
+import ctypes
 from pathlib import Path
 
 # Import core modules
@@ -12,111 +13,111 @@ from config.license_manager import LicenseManager
 from core.lhm_client import LHMClient
 from core.process_throttler import Throttler
 from core.vram_guard_core import VRAMGuardCore
+from ui.tray_icon import VRAMGuardTray
+from ui.settings_window import SettingsWindow
 
-# --- GLOBAL CONFIGURATION ---
-LOG_FILE = "vram_guard.log"
 APP_NAME = "VRAM Guard"
-STARTUP_DELAY_S = 30 # Delay to avoid driver conflicts during Windows boot
 
-def setup_logging():
+def hide_console():
     """
-    Configures the logging system to write to a file and console.
+    Hides the console window if the script is running with a visible terminal.
     """
-    log_path = Path(LOG_FILE)
+    try:
+        # Get handle to the console window
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            # ShowWindow with command 0 (SW_HIDE)
+            ctypes.windll.user32.ShowWindow(hwnd, 0)
+    except Exception:
+        pass
+
+def setup_logging(project_root: Path):
+    """
+    Configures the logging system.
+    """
+    log_path = project_root / "vram_guard.log"
     
-    # File handler: limit size to 1MB, keep 1 backup
+    # Rotating file handler (1MB limit)
     file_handler = logging.handlers.RotatingFileHandler(
         log_path, maxBytes=1024 * 1024, backupCount=1, encoding='utf-8'
     )
     file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s [%(levelname)s] %(name)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     ))
 
-    # Console handler (only shows INFO/WARNING/ERROR)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
-    console_handler.setLevel(logging.INFO)
-
     # Root logger setup
-    logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler])
-    logging.getLogger('urllib3').setLevel(logging.WARNING) # Suppress noisy requests logs
+    logging.basicConfig(level=logging.INFO, handlers=[file_handler])
+    # Suppress noisy external logs
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 def main():
     """
-    Main entry point of the application. Initializes all core components.
+    Main entry point for VRAM Guard v1.4.1.
     """
-    setup_logging()
+    # 0. Hide console immediately for stealth operation
+    hide_console()
+
+    # 1. Path and Environment Setup
+    project_root = Path(__file__).parent.absolute()
+    os.chdir(project_root)
+    
+    setup_logging(project_root)
     logger = logging.getLogger(APP_NAME)
-    
-    logger.info(f"--- {APP_NAME} v1.4.0 (Core Stability) Started ---")
-    
-    # 1. Initialization
-    settings = Settings()
+    logger.info(f"--- {APP_NAME} v1.4.1 Started ---")
+
+    # 2. Initialize Components
+    settings = Settings(project_root)
     license_manager = LicenseManager()
-    
-    logger.info(f"VRAM T1 Threshold: {settings.get('vram_t1_threshold')}°C")
-    logger.info(f"Pro Features Active: {license_manager.is_pro_active()}")
-    
-    # 2. Startup Delay (Critical for driver stability)
-    logger.info(f"Waiting {STARTUP_DELAY_S} seconds for system/driver warm-up...")
-    time.sleep(STARTUP_DELAY_S)
-    logger.info("Startup delay complete. Starting core services.")
-    
-    # 3. Component Instantiation
-    lhm_client = LHMClient()
+    lhm_client = LHMClient(project_root)
     throttler = Throttler()
-    
-    # Check if we have admin rights before starting the core loop
+
+    # 3. Admin Rights Check
     if not throttler._is_admin:
-        logger.critical("Application lacks Administrator privileges. Throttling will fail.")
-        logger.critical("Please re-run Start_Protection.bat as Administrator.")
-        # NOTE: In v1.5, we would add a Windows Toast notification here.
-        # We continue running to allow LHM monitoring, but throttling is disabled.
-        # For now, we exit gracefully.
-        time.sleep(5)
+        logger.critical("Application requires Administrator privileges to manage processes.")
+        # Without console, user needs a GUI message
+        ctypes.windll.user32.MessageBoxW(
+            0, "VRAM Guard requires Administrator privileges.\nPlease run Start_Protection.bat as Admin.", 
+            "Critical Error", 0x10
+        )
         sys.exit(1)
-        
+
     # 4. Core Logic Setup
-    core = VRAMGuardCore(
-        settings=settings,
-        license_manager=license_manager,
-        lhm_client=lhm_client,
-        throttler=throttler
-    )
+    core = VRAMGuardCore(settings, license_manager, lhm_client, throttler)
     
-    # 5. Start Core Logic in a separate thread
-    core_thread = threading.Thread(
-        target=core.run_monitoring_loop, 
-        daemon=True
-    )
+    # 5. Start Core Monitoring in background thread
+    core_thread = threading.Thread(target=core.run_monitoring_loop, daemon=True)
     core_thread.start()
-    
-    # 6. Start UI (Placeholder - Tkinter/pystray will go here)
-    logger.info("Starting System Tray Icon (Placeholder)...")
-    
-    # Keep the main thread alive (this would be the GUI loop in a real app)
-    try:
-        while True:
-            time.sleep(1)
-            if not core_thread.is_alive():
-                logger.error("Core monitoring thread died unexpectedly!")
-                break
-    except KeyboardInterrupt:
-        logger.info("Application stopped by user (KeyboardInterrupt).")
-    except Exception as e:
-        logger.critical(f"Unhandled exception in main thread: {e}")
-    finally:
-        # Clean up LHM process on exit
+
+    # 6. UI Callbacks
+    def on_exit(icon, item):
+        logger.info("Exit requested by user.")
+        icon.stop()
         lhm_client.stop()
-        logger.info("Application terminated gracefully.")
+        # Ensure all threads are killed
+        os._exit(0)
+
+    def on_settings(icon, item):
+        logger.debug("Opening settings window.")
+        SettingsWindow(settings).show()
+
+    # 7. Initialize and Run Tray Icon
+    tray = VRAMGuardTray(project_root, settings, core, on_exit, on_settings)
+
+    # UI Update Loop (Updates tray info every 2 seconds)
+    def update_ui_loop():
+        while True:
+            tray.update_state()
+            time.sleep(2)
+
+    threading.Thread(target=update_ui_loop, daemon=True).start()
+
+    # Run Tray Icon (This blocks the main thread)
+    try:
+        tray.run()
+    except Exception as e:
+        logger.critical(f"Tray icon crashed: {e}")
+    finally:
+        lhm_client.stop()
 
 if __name__ == "__main__":
-    # Ensure the script is run from the correct directory for path resolution
-    if getattr(sys, 'frozen', False):
-        # Running as a compiled executable
-        pass
-    else:
-        # Running as a script: change directory to script location
-        os.chdir(Path(__file__).parent)
-        
     main()
