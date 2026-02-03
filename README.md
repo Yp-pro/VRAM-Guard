@@ -1,4 +1,4 @@
-# ![VRAM Guard Logo](img\Logo.png) 
+# ![VRAM Guard Logo](img/Logo.png) 
 
 **VRAM Guard** is a specialized utility for NVIDIA laptop owners (RTX 30xx/40xx series) who face extreme Video RAM (VRAM) overheating during AI-intensive tasks such as Image/Video Upscaling (Topaz, Gigapixel, ChaiNNer) or running local LLMs and Stable Diffusion.
 
