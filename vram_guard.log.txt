@@ -1,8 +1,0 @@
-2026-01-31 13:45:40,572 [INFO] VRAM Guard: --- VRAM Guard v1.4.1 Started ---
-2026-01-31 13:45:40,572 [INFO] config.settings: Settings loaded successfully.
-2026-01-31 13:45:40,572 [INFO] core.vram_guard_core: VRAM Guard Core loop started.
-2026-01-31 13:45:42,655 [INFO] core.lhm_client: LHM process started (PID: 11960)
-2026-01-31 13:45:43,663 [INFO] core.lhm_client: Waiting for API... (0s)
-2026-01-31 13:45:48,871 [INFO] core.lhm_client: LHM API is online.
-2026-01-31 13:45:48,897 [INFO] core.vram_guard_core: SUCCESS: Linked to sensor 'GPU Memory Junction'
-2026-01-31 13:45:48,897 [INFO] core.vram_guard_core: Initial VRAM Temp: 54.0°C

@@ -17,17 +17,15 @@ VRAM Guard monitors the VRAM temperature via `LibreHardwareMonitor`. When the te
 3. It **Resumes** them for a short burst of work (`WORK_TIME`).
 4. This "Sawtooth" load pattern allows the VRAM to shed heat effectively during pauses, keeping average temperatures significantly lower without crashing the application.
 
-## ✨ Key Features (v1.4.1 Hotfix)
+## ✨ Key Features (v1.4.2 Update)
 
-*   **👻 Stealth Mode (NEW):** The application now runs completely in the background. No console window will clutter your taskbar; everything is managed via the system tray.
-*   **⚙️ Core Stability:** Complete internal refactoring to Object-Oriented structure for maximum reliability. 
-
-*   **📝 Advanced Logging:** All actions and errors are logged to `vram_guard.log` for easy debugging.
-*   **🔔 Notifications & Audio Alerts:** Get notified immediately when throttling kicks in.
-    *   **Windows Toast:** Pop-up alert when VRAM Guard activates cooling.
-    *   **Panic Siren:** Audible beeping if the temperature reaches the Panic Threshold (105°C), warning you of critical danger.
-*   **🚨 Panic Button:** The last line of defense. If VRAM hits **105°C** for more than 10 seconds, VRAM Guard performs an **Emergency Kill** of the heavy process to prevent permanent hardware damage.
-*   **🔌 Zero Friction Setup:** Automatic download and configuration of monitoring tools.
+*   **🚀 Autostart (NEW):** You can now enable "Start with Windows" directly from the settings menu.
+*   **👻 Stealth Mode:** Runs completely in the background via system tray. No console windows.
+*   **⚙️ Core Stability:** Full OOP structure for maximum reliability and uptime.
+*   **📝 Advanced Logging:** Actions are logged to `vram_guard.log`.
+*   **🔔 Notifications & Audio Alerts:** Get notified when throttling kicks in or when temperatures hit panic levels.
+*   **🚨 Panic Button:** Emergency kill of heavy GPU processes at 105°C to save hardware.
+*   **🔌 Zero Friction Setup:** Automatic download and configuration of `LibreHardwareMonitor` (v0.9.5).
 *   **🚀 Adaptive Polling:** The script intelligently changes its check frequency based on temperature.
 *   **🔋 Idle Optimization:** `nvidia-smi` is called **only** when the temperature threshold is exceeded.
 *   **🛠️ Watchdog System:** Automatically monitors the health of the background service and restarts it if necessary.
@@ -61,8 +59,8 @@ Run **`Start_Protection.bat`** as **Administrator**.
 ```text
 📂 VRAM-Guard
  ├── 📄 vram_guard.py         # Main Logic
- ├── 📄 Start_Protection.bat  # Launcher (Clean start in Stealth Mode)
- ├── 📄 install.bat           # Dependency Installer
+ ├── 📄 Start_Protection.bat  # Launcher
+ ├── 📄 install.bat           # Before 1st run
  ├── 📄 settings.json         # Configuration file for thresholds and timings
  ├── 📄 vram_guard.log        # Log file for debugging
  ├── 📂 resources             # Application resources
@@ -75,22 +73,16 @@ Run **`Start_Protection.bat`** as **Administrator**.
 ## ⚙️ Configuration
 
 ### For Novice Users (System Tray)
-
-You can configure basic settings via the **System Tray Icon -> Settings** window:
-
-- **Threshold Slider:** Set the temp to trigger cooling (Recommended: 90-94°C).
-- **Windows Notifications:** Toggle toast pop-ups on/off.
+- **Threshold Slider:** Set the temp to trigger cooling.
+- **Start with Windows:** Toggle automatic launch on boot.
+- **Windows Notifications:** Toggle toast pop-ups.
 - **Audio Alert:** Toggle the panic beep sound on/off.
 
 ### For Advanced Users (settings.json)
-
-Advanced users can edit the **settings.json** file directly for precise control over timings and thresholds:
-
-- vram_t1_threshold: Temperature threshold to trigger cooling (Recommended: 90-94°C).
-- cool_down_time_s: Duration of the **pause** (Default: 3.0s).
-- work_time_s: Duration of the **work burst** (Default: 2.0s).
-- vram_t2_panic_threshold: Temperature to trigger emergency kill (Default: 105°C).
-- lhm_port: Start port for LibreHardwareMonitor (Default: 8085).
+- `vram_t1_threshold`: Cooling trigger temp.
+- `cool_down_time_s`: Pause duration (Default: 3.0s).
+- `work_time_s`: Work duration (Default: 2.0s).
+- `enable_autostart`: Boolean for registry launch.
 
 ## 🛡️ Safety & Hardware Impact
 
